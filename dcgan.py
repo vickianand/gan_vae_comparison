@@ -52,6 +52,9 @@ class DCGAN:
         labels_zeros = torch.zeros(batch_size, device=self.device)
         # marged_targets = torch.cat([labels_ones, labels_zeros], dim=0)
 
+        # to be used for tensborboard-logging only
+        constant_noise = torch.randn(64, self.latent_dim)
+
         for ep in range(1, epochs + 1):
 
             print("\n", "=" * 35, f"training epoch {ep}", "=" * 35, "\n")
@@ -105,14 +108,17 @@ class DCGAN:
             print(
                 f"epoch {ep}, iter {it}(total iter {self.glob_it}): d_loss = {d_loss}, g_loss = {g_loss}"
             )
-            tb_logger.add_images("epoch_samples", self.sample(64), ep)
+            tb_logger.add_images("epoch/sample1", self.sample(noise=constant_noise), ep)
+            tb_logger.add_images("epoch/sample2", self.sample(num_images=64), ep)
             # save model at end of each epoch
             self.save_model(model_name=f"dcgan_ep{ep}.pt", idx=self.glob_it)
 
-    def sample(self, num_images=4):
+    def sample(self, num_images=4, noise=None):
+        if noise is None:
+            noise = torch.randn(num_images, self.latent_dim, device=self.device)
+
         self.g.eval()
         with torch.no_grad():
-            noise = torch.randn(num_images, self.latent_dim, device=self.device)
             images = self.g(noise).to("cpu")
         # change range from (-1, 1) to (0, 1)
         images = images * 0.5 + 0.5
