@@ -49,7 +49,7 @@ class DCGAN:
         batch_size = data_loader.batch_size
         labels_ones = torch.ones(batch_size, device=self.device)
         labels_zeros = torch.zeros(batch_size, device=self.device)
-        marged_targets = torch.cat([labels_ones, labels_zeros], dim=0)
+        # marged_targets = torch.cat([labels_ones, labels_zeros], dim=0)
 
         glob_it = 0
         for ep in range(1, epochs + 1):
@@ -65,14 +65,18 @@ class DCGAN:
                 fake_imgs = self.g(noise)
                 predictions_real = self.d(imgs)
                 predictions_fake = self.d(fake_imgs)
-                merged_predictions = torch.cat([predictions_real, predictions_fake], 0)
-                d_loss = self.criterion(merged_predictions, marged_targets)
+                # merged_predictions = torch.cat([predictions_real, predictions_fake], 0)
+                d_loss_real = self.criterion(predictions_real, labels_ones)
+                d_loss_fake = self.criterion(predictions_fake, labels_zeros)
+                d_loss = d_loss_real + d_loss_fake
 
                 self.d.zero_grad()
                 d_loss.backward()
                 self.d_optim.step()
 
-                tb_logger.add_scalar("d_loss", d_loss, glob_it)
+                tb_logger.add_scalar("d_loss/total", d_loss, glob_it)
+                tb_logger.add_scalar("d_loss/real", d_loss_real, glob_it)
+                tb_logger.add_scalar("d_loss/fake", d_loss_fake, glob_it)
 
                 # train generator every d_train_freq iterations
                 if glob_it % d_train_freq == 0:
@@ -87,7 +91,6 @@ class DCGAN:
                     self.g_optim.step()
 
                     tb_logger.add_scalar("g_loss", g_loss, glob_it)
-                    break
 
                 if glob_it % log_freq == 0:
                     # log some images to tensorboard
@@ -170,7 +173,7 @@ def read_args():
     parser.add_argument("--batch_size", default=32, type=int, help="batch size")
     parser.add_argument("--model_path", default="runs/test/saved_models/dcgan_ep1.pt")
     parser.add_argument("--samples_dir", default="runs/test/samples/")
-    parser.add_argument("--n_samples", default=1000, type=int)
+    parser.add_argument("--n_samples", default=100, type=int)
     return parser.parse_args()
 
 
