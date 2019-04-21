@@ -33,6 +33,7 @@ class DCGAN:
         self.g_optim = torch.optim.Adam(
             self.g.parameters(), lr=2e-4, betas=(0.5, 0.999)
         )
+        self.glob_it = 0  # gloabl training iteration count (across epochs and resuming)
 
         self.criterion = nn.BCEWithLogitsLoss()
 
@@ -51,13 +52,12 @@ class DCGAN:
         labels_zeros = torch.zeros(batch_size, device=self.device)
         # marged_targets = torch.cat([labels_ones, labels_zeros], dim=0)
 
-        glob_it = 0
         for ep in range(1, epochs + 1):
 
             print("\n", "=" * 35, f"training epoch {ep}", "=" * 35, "\n")
 
             for it, (imgs, _) in tqdm(enumerate(data_loader)):
-                glob_it += 1
+                self.glob_it += 1
 
                 imgs = imgs.to(self.device)
                 # train disriminator
@@ -74,12 +74,12 @@ class DCGAN:
                 d_loss.backward()
                 self.d_optim.step()
 
-                tb_logger.add_scalar("d_loss/total", d_loss, glob_it)
-                tb_logger.add_scalar("d_loss/real", d_loss_real, glob_it)
-                tb_logger.add_scalar("d_loss/fake", d_loss_fake, glob_it)
+                tb_logger.add_scalar("d_loss/total", d_loss, self.glob_it)
+                tb_logger.add_scalar("d_loss/real", d_loss_real, self.glob_it)
+                tb_logger.add_scalar("d_loss/fake", d_loss_fake, self.glob_it)
 
                 # train generator every d_train_freq iterations
-                if glob_it % d_train_freq == 0:
+                if self.glob_it % d_train_freq == 0:
                     noise = torch.randn(batch_size, self.latent_dim, device=self.device)
                     fake_imgs = self.g(noise)
                     predictions_fake = self.d(fake_imgs)
@@ -90,24 +90,27 @@ class DCGAN:
                     g_loss.backward()
                     self.g_optim.step()
 
-                    tb_logger.add_scalar("g_loss", g_loss, glob_it)
+                    tb_logger.add_scalar("g_loss", g_loss, self.glob_it)
 
-                if glob_it % log_freq == 0:
+                if self.glob_it % log_freq == 0:
                     # log some images to tensorboard
-                    tb_logger.add_figure("samples", self.get_mXn_samples(4, 4), glob_it)
-                    # tb_logger.add_images("samples", self.sample(9), glob_it)
-
+                    tb_logger.add_figure(
+                        "samples", self.get_mXn_samples(4, 4), self.glob_it
+                    )
                     print(
-                        f"epoch {ep}, iter {it}: d_loss = {d_loss}, g_loss = {g_loss}"
+                        f"epoch {ep}, iter {it} (total iter {self.glob_it}): d_loss = {d_loss}, g_loss = {g_loss}"
                     )
 
             # per epoch logging
-            print(f"epoch {ep}, iter {it}: d_loss = {d_loss}, g_loss = {g_loss}")
+            print(
+                f"epoch {ep}, iter {it}(total iter {self.glob_it}): d_loss = {d_loss}, g_loss = {g_loss}"
+            )
             tb_logger.add_images("epoch_samples", self.sample(64), ep)
             # save model at end of each epoch
-            self.save_model(model_name=f"dcgan_ep{ep}.pt", idx=glob_it)
+            self.save_model(model_name=f"dcgan_ep{ep}.pt", idx=self.glob_it)
 
     def sample(self, num_images=4):
+        self.g.eval()
         with torch.no_grad():
             noise = torch.randn(num_images, self.latent_dim, device=self.device)
             images = self.g(noise).to("cpu")
@@ -121,6 +124,8 @@ class DCGAN:
         images = images.permute(0, 2, 3, 1)  # make channels last
 
         f, axarr = plt.subplots(m, n)
+        plt.axis("off")
+
         for i in range(m):
             for j in range(n):
                 axarr[i, j].imshow(images[i * m + j])
@@ -128,7 +133,6 @@ class DCGAN:
                 axarr[i, j].imshow(images[i * m + j])
                 axarr[i, j].imshow(images[i * m + j])
 
-        plt.axis("off")
         return f
 
     def save_model(self, model_name="best_model.pt", idx=0):
@@ -148,7 +152,9 @@ class DCGAN:
         self.d.load_state_dict(model_details["discriminator_states"])
         self.g.load_state_dict(model_details["generator_states"])
         self.d_optim.load_state_dict(model_details["d_optim_states"])
-        self.d_optim.load_state_dict(model_details["g_optim_states"])
+        self.g_optim.load_state_dict(model_details["g_optim_states"])
+        self.glob_it = model_details["idx"]
+        print(f"Successfuly loaded models and optims from {dict_path}")
 
 
 def read_args():
@@ -157,6 +163,11 @@ def read_args():
         "train_or_sample",
         choices={"train", "sample"},
         help="Whether to train or sample",
+    )
+    parser.add_argument(
+        "--resume_path",
+        default="",
+        help="if want to resumet training from a saved model and optim",
     )
     parser.add_argument(
         "--device", choices={"cpu", "cuda"}, default="cpu", help="device to run on"
@@ -201,6 +212,8 @@ def main():
         data_loader = get_dataloader(
             args.data, data_dir=args.data_dir, batch_size=args.batch_size
         )
+        if args.resume_path != "":
+            gan.load_model(dict_path=args.resume_path)
         gan.train(data_loader, epochs=100, log_dir=args.log_dir)
     elif args.train_or_sample == "sample":
         gan.load_model(args.model_path)
