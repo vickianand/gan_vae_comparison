@@ -48,7 +48,7 @@ class VAE:
         DKL = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         return MSE + DKL
 
-    def train(self, data_loader, epochs=20, log_dir="runs/test/", log_freq=200):
+    def train(self, data_loader, epochs=20, log_dir="runs/test/", log_freq=500):
         """ run training loop
         """
         tb_logger = SummaryWriter(log_dir=log_dir)
@@ -69,7 +69,7 @@ class VAE:
 
                 # reparamnetrizesation
                 std = torch.exp(0.5 * logvar)
-                e = torch.randn(std.shape)
+                e = torch.randn(std.shape, device=self.device)
                 z = mu + e * std
 
                 imgs_recon = self.dec(z)
@@ -144,7 +144,7 @@ class VAE:
         model_details = torch.load(dict_path, map_location=self.device)
         self.enc.load_state_dict(model_details["encoder_states"])
         self.dec.load_state_dict(model_details["decoder_states"])
-        self.optim.load_state_dict(model_details["doptim_states"])
+        self.optim.load_state_dict(model_details["optim_states"])
         self.glob_it = model_details["idx"]
         print(f"Successfuly loaded models and optims from {dict_path}")
 

@@ -41,7 +41,7 @@ class DCGAN:
         self.device = device
 
     def train(
-        self, data_loader, epochs=20, d_train_freq=2, log_dir="runs/test/", log_freq=200
+        self, data_loader, epochs=20, d_train_freq=2, log_dir="runs/test/", log_freq=500
     ):
         """ run training loop
         """
@@ -50,10 +50,10 @@ class DCGAN:
         batch_size = data_loader.batch_size
         labels_ones = torch.ones(batch_size, device=self.device)
         labels_zeros = torch.zeros(batch_size, device=self.device)
-        # marged_targets = torch.cat([labels_ones, labels_zeros], dim=0)
+        marged_targets = torch.cat([labels_ones, labels_zeros], dim=0)
 
         # to be used for tensborboard-logging only
-        constant_noise = torch.randn(64, self.latent_dim)
+        constant_noise = torch.randn(64, self.latent_dim, device=self.device)
 
         for ep in range(1, epochs + 1):
 
@@ -68,18 +68,18 @@ class DCGAN:
                 fake_imgs = self.g(noise)
                 predictions_real = self.d(imgs)
                 predictions_fake = self.d(fake_imgs)
-                # merged_predictions = torch.cat([predictions_real, predictions_fake], 0)
-                d_loss_real = self.criterion(predictions_real, labels_ones)
-                d_loss_fake = self.criterion(predictions_fake, labels_zeros)
-                d_loss = d_loss_real + d_loss_fake
+                merged_predictions = torch.cat([predictions_real, predictions_fake], 0)
+                # d_loss_real = self.criterion(predictions_real, labels_ones)
+                # d_loss_fake = self.criterion(predictions_fake, labels_zeros)
+                d_loss = self.criterion(merged_predictions, marged_targets)
 
                 self.d.zero_grad()
                 d_loss.backward()
                 self.d_optim.step()
 
                 tb_logger.add_scalar("d_loss/total", d_loss, self.glob_it)
-                tb_logger.add_scalar("d_loss/real", d_loss_real, self.glob_it)
-                tb_logger.add_scalar("d_loss/fake", d_loss_fake, self.glob_it)
+                # tb_logger.add_scalar("d_loss/real", d_loss_real, self.glob_it)
+                # tb_logger.add_scalar("d_loss/fake", d_loss_fake, self.glob_it)
 
                 # train generator every d_train_freq iterations
                 if self.glob_it % d_train_freq == 0:
@@ -98,7 +98,7 @@ class DCGAN:
                 if self.glob_it % log_freq == 0:
                     # log some images to tensorboard
                     tb_logger.add_figure(
-                        "samples", self.get_mXn_samples(4, 4), self.glob_it
+                        "samples", self.get_mXn_samples_grid(4, 4), self.glob_it
                     )
                     print(
                         f"epoch {ep}, iter {it} (total iter {self.glob_it}): d_loss = {d_loss}, g_loss = {g_loss}"
@@ -124,7 +124,7 @@ class DCGAN:
         images = images * 0.5 + 0.5
         return images
 
-    def get_mXn_samples(self, m=3, n=3):
+    def get_mXn_samples_grid(self, m=3, n=3):
 
         images = self.sample(num_images=m * n)
         images = images.permute(0, 2, 3, 1)  # make channels last
