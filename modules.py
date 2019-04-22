@@ -133,7 +133,7 @@ class ConvOnlyDiscriminator(nn.Module):
     classification of (n_channels, 32, 32) images
     """
 
-    def __init__(self, n_channels=3):
+    def __init__(self, n_channels=3, out_dim=1):
         """
         args:
             n_channels (int): number of channels in input image 
@@ -154,10 +154,10 @@ class ConvOnlyDiscriminator(nn.Module):
             conv_layers_list.append(nn.LeakyReLU(0.2, inplace=True))
             in_channels = out_channels
 
-        # last conv: (1024, 4, 4) -> (1024, 1, 1)
+        # last conv: (1024, 4, 4) -> (out_dim, 1, 1)
         self.net = nn.Sequential(
             *conv_layers_list,
-            nn.Conv2d(out_channels_list[-1], 1, 4, stride=1, padding=0),
+            nn.Conv2d(out_channels_list[-1], out_dim, 4, stride=1, padding=0),
             # nn.Sigmoid() # not using sigmoid because using BCEWithLogitLoss()
         )
 
