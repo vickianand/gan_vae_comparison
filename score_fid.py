@@ -92,10 +92,6 @@ def calculate_fid_score(sample_feature_iterator, testset_feature_iterator):
     sample_features = np.stack([sf for sf in sample_feature_iterator], axis=0)
     testset_features = np.stack([tf for tf in testset_feature_iterator], axis=0)
 
-    # import IPython
-
-    # IPython.embed()
-
     mu_p = testset_features.mean(axis=0)
     mu_q = sample_features.mean(axis=0)
     print(f"mu_p.shape: {mu_p.shape}, mu_q.shape: {mu_q.shape}")

@@ -28,4 +28,6 @@ def get_dataloader(data="svhn_train", data_dir="data/svhn/", batch_size=32):
     else:
         raise (NotImplementedError)
 
-    return DataLoader(dataset, batch_size=batch_size, num_workers=4, drop_last=True)
+    return DataLoader(
+        dataset, batch_size=batch_size, num_workers=4, drop_last=True, shuffle=True
+    )
