@@ -2,6 +2,8 @@
 This script is written for running on cpu because here we only generate 
 samples from a pre-trained models. For training the models use dcgan.py
 and vae.py.
+Also this script has full of hard-coded values and is written for 
+for a very specific task (to generate outputs for report of a course assignment)
 """
 
 import os
@@ -55,46 +57,52 @@ def main():
 
     # ----------------------------------------------------------------------------------
 
-    # first save some random samples from both the models and also from original dataset
-    samples_dir = os.path.join(args.out_dir, "visual_samples/")
-    os.makedirs(samples_dir, exist_ok=True)
+    # # first save some random samples from both the models and also from original dataset
+    # samples_dir = os.path.join(args.out_dir, "visual_samples/")
+    # os.makedirs(samples_dir, exist_ok=True)
 
-    # # draw 3 8X8 grid of images from each of 3 sources
-    for i in range(1, 4):
-        # original svhn dataset samples
-        svhn_data_loader = get_dataloader("svhn_train", batch_size=64)
-        orig_imgs, _ = next(iter(svhn_data_loader))
-        save_image((orig_imgs * 0.5 + 0.5), samples_dir + f"orig_image_grid{i}.png")
-        # gan samples
-        gan_imgs = gan.sample(num_images=64)
-        save_image(gan_imgs, samples_dir + f"gan_image_grid{i}.png")
-        # gan samples
-        vae_imgs = vae.sample(num_images=64)
-        save_image(vae_imgs, samples_dir + f"vae_image_grid{i}.png")
-    # ----------------------------------------------------------------------------------
+    # # # draw 3 8X8 grid of images from each of 3 sources
+    # for i in range(1, 4):
+    #     # original svhn dataset samples
+    #     svhn_data_loader = get_dataloader("svhn_train", batch_size=64)
+    #     orig_imgs, _ = next(iter(svhn_data_loader))
+    #     save_image((orig_imgs * 0.5 + 0.5), samples_dir + f"orig_image_grid{i}.png")
+    #     # gan samples
+    #     gan_imgs = gan.sample(num_images=64)
+    #     save_image(gan_imgs, samples_dir + f"gan_image_grid{i}.png")
+    #     # gan samples
+    #     vae_imgs = vae.sample(num_images=64)
+    #     save_image(vae_imgs, samples_dir + f"vae_image_grid{i}.png")
+    # # ----------------------------------------------------------------------------------
 
     # # next we want to see if the model has learned a disentangled representation in thelatent space
     disentg_dir = os.path.join(args.out_dir, "disentangled_repr/")
     os.makedirs(disentg_dir, exist_ok=True)
-    eps = 10
+    imgs_per_row = 12
+    eps = 15
+    noise = torch.randn(imgs_per_row, 100)
 
-    for i in tqdm(range(10)):
-        noise = torch.randn(10, 100)
-        noise_perturbed = noise.clone()
-        noise_perturbed[:, i] += eps
+    for tag, model in [("gan", gan), ("vae", vae)]:
+        imgs_orig = model.sample(noise=noise)
+        imgs_list = [imgs_orig, torch.zeros(imgs_per_row, 3, 32, 32)]
+        interesting_dims = [14, 46, 51] if tag == "gan" else [12, 18, 70]
+        # for i in tqdm(range(100)):
+        for i in interesting_dims:
+            noise_perturbed = noise.clone()
+            noise_perturbed[:, i] += eps
+            imgs_list.append(model.sample(noise=noise_perturbed))
 
-        vae_imgs_orig = vae.sample(noise=noise)
-        vae_imgs_prtb = vae.sample(noise=noise_perturbed)
-        vae_imgs_joined = torch.cat([vae_imgs_orig, vae_imgs_prtb], dim=0)
-        save_image(vae_imgs_joined, disentg_dir + f"vae_{i}.png", nrow=10)
+        imgs_joined = torch.cat(imgs_list, dim=0)
+        save_image(
+            imgs_joined,
+            disentg_dir + f"{tag}_disentang_3dims_seed{args.seed}_eps{eps}.png",
+            nrow=imgs_per_row,
+        )
 
-        gan_imgs_orig = gan.sample(noise=noise)
-        gan_imgs_prtb = gan.sample(noise=noise_perturbed)
-        gan_imgs_joined = torch.cat([gan_imgs_orig, gan_imgs_prtb], dim=0)
-        save_image(gan_imgs_joined, disentg_dir + f"gan_{i}.png", nrow=10)
     # ----------------------------------------------------------------------------------
+    return
 
-    # Compare between interpolating in the data space and in the latent space
+    # Compare between interpolations in the data space and in the latent space
     interpolations_dir = os.path.join(args.out_dir, "interpolations/")
     os.makedirs(interpolations_dir, exist_ok=True)
     z = torch.randn(2, 100)  # two noises which will be interpolated
